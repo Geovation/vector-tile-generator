@@ -18,7 +18,7 @@ tile_envelope AS (
 ),
 tile_envelope_transformed AS (
   SELECT
-    st_transform(tile_envelope.tile_envelope, srid) AS tile_envelope_transformed -- Envelope in the SRID of the table
+    st_transform(tile_envelope.tile_envelope, srid) AS tile_envelope_transformed -- An envelope in the SRID of the table
   FROM
     tile_envelope, srid
 ),

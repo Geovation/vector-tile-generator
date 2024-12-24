@@ -13,7 +13,7 @@ with geojson as (
   from (
     select
       {{columns}},
-      st_transform(geom, 4326) as geom
+      st_reduceprecision(st_transform(geom, 4326), 0.000001) as geom
     from
       {{table_name}}
   ) row

@@ -19,6 +19,11 @@ const degreesToRadians = degrees => {
 }
 
 const downloadAsCSV = async () => {
+  // First check if we already have the CSV file
+  if (fs.existsSync(`./temp/${process.env.DB_TABLE}.csv`)) {
+    return
+  }
+
   const client = await pool.connect()
   const columns = process.env.DB_COLUMNS
   const tableName = process.env.DB_TABLE
@@ -108,18 +113,19 @@ export const databaseSequential = async () => {
 }
 
 export const downloadAsGeoJSON = async () => {
-  // First get the CSV data
-  await downloadAsCSV()
+  const tableName = process.env.DB_TABLE
 
-  // Convert CSV to GeoJSON
-  var geoJSON = {
-    type: 'FeatureCollection',
-    features: []
+  // First check if we already have the GeoJSON file
+  if (fs.existsSync(`./temp/${tableName}.geojson`)) {
+    return JSON.parse(fs.readFileSync(`./temp/${tableName}.geojson`))
   }
 
-  const tableName = process.env.DB_TABLE
-  const jsonArray = await csvtojson().fromFile(`./temp/${tableName}.csv`)
+  // If the CSV file doesn't already exist, it will be created
+  await downloadAsCSV()
 
+  const geoJSON = { type: 'FeatureCollection', features: [] }
+
+  const jsonArray = await csvtojson().fromFile(`./temp/${tableName}.csv`)
   jsonArray.forEach(element => {
     if (element.st_astext && element.st_astext !== '') {
       const feat = wktToGeoJSON(element.st_astext)
@@ -129,6 +135,7 @@ export const downloadAsGeoJSON = async () => {
   })
 
   fs.writeFileSync(`./temp/${tableName}.geojson`, JSON.stringify(geoJSON))
+  return geoJSON
 }
 
 export const geoJSONSequential = async () => {
@@ -136,5 +143,5 @@ export const geoJSONSequential = async () => {
   const minZoom = process.env.MIN_ZOOM_LEVEL
   const maxZoom = process.env.MAX_ZOOM_LEVEL
 
-  await downloadAsGeoJSON()
+  const geoJSON = await downloadAsGeoJSON()
 }
