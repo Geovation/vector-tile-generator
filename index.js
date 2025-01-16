@@ -1,4 +1,8 @@
-import { databaseSequential, geoJSONSequential } from './methods.js'
+import {
+  databaseSequential,
+  vtPbfSequential,
+  tippecanoeBulk
+} from './methods.js'
 
 // Read input argument of the method to use
 const method = process.argv[2]
@@ -10,6 +14,10 @@ if (method === 'databaseSequential') {
   await databaseSequential()
 }
 
-if (method === 'geoJSONSequential') {
-  await geoJSONSequential()
+if (method === 'vtPbfSequential') {
+  await vtPbfSequential()
+}
+
+if (method === 'tippecanoeBulk') {
+  await tippecanoeBulk()
 }

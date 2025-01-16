@@ -2,6 +2,12 @@ import { pool } from './dbConnection.js'
 
 import csvtojson from 'csvtojson'
 
+import tippecanoe from 'tippecanoe'
+
+import geojsonvt from 'geojson-vt'
+
+import vtpbf from 'vt-pbf'
+
 import { pipeline } from 'node:stream/promises'
 
 import { to as copyTo } from 'pg-copy-streams'
@@ -30,13 +36,43 @@ const downloadAsCSV = async () => {
 
   fs.mkdirSync(`./temp`, { recursive: true })
 
+  const queryTemplate = fs.readFileSync('./queries/generateCSV.sql', 'utf8')
+  const query = queryTemplate
+    .replace(/{{table_name}}/g, tableName)
+    .replace(/{{columns}}/g, columns)
+
   try {
-    const stream = client.query(
-      copyTo(
-        `copy (SELECT ${columns}, st_astext(st_transform(geom, 4326)) FROM ${tableName}) TO STDOUT CSV HEADER`
-      )
-    )
+    const stream = client.query(copyTo(`copy (${query}) TO STDOUT CSV HEADER`))
     await pipeline(stream, fs.createWriteStream(`./temp/${tableName}.csv`))
+  } finally {
+    client.release()
+  }
+  await pool.end()
+}
+
+const downloadAsGeoJSONCopy = async () => {
+  const tableName = process.env.DB_TABLE
+
+  // First check if we already have the GeoJSON file
+  if (fs.existsSync(`./temp/${tableName}.geojson`)) {
+    return JSON.parse(fs.readFileSync(`./temp/${tableName}.geojson`))
+  }
+
+  // If the CSV file doesn't already exist, it will be created
+  await downloadAsCSV()
+
+  const queryTemplate = fs.readFileSync('./queries/generateGEOJSON.sql', 'utf8')
+
+  const client = await pool.connect()
+  const columns = process.env.DB_COLUMNS
+
+  const query = queryTemplate
+    .replace(/{{table_name}}/g, tableName)
+    .replace(/{{columns}}/g, columns)
+
+  try {
+    const stream = client.query(copyTo(`copy (${query}) TO STDOUT`))
+    await pipeline(stream, fs.createWriteStream(`./temp/${tableName}.geojson`))
   } finally {
     client.release()
   }
@@ -75,6 +111,86 @@ export const getLatLngBoundsFromDatabase = async () => {
   return bounds
 }
 
+export const downloadAsGeoJSON = async () => {
+  const tableName = process.env.DB_TABLE
+
+  // First check if we already have the GeoJSON file
+  if (fs.existsSync(`./temp/${tableName}.geojson`)) {
+    return JSON.parse(fs.readFileSync(`./temp/${tableName}.geojson`))
+  }
+
+  // If the CSV file doesn't already exist, it will be created
+  await downloadAsCSV()
+
+  const geoJSONFeatures = []
+
+  const jsonArray = await csvtojson().fromFile(`./temp/${tableName}.csv`)
+  jsonArray.forEach(element => {
+    if (element.geom) {
+      const geometry = wktToGeoJSON(element.geom)
+      const feat = {
+        type: 'Feature',
+        geometry,
+        properties: (({ geom, ...o }) => o)(element)
+      }
+      geoJSONFeatures.push(feat)
+    }
+  })
+
+  const geoJSONFeatureStrings = geoJSONFeatures.map(feature =>
+    JSON.stringify(feature)
+  )
+
+  const geoJSONFeaturesString = geoJSONFeatureStrings.join(',')
+
+  const geoJSONString = `{"type": "FeatureCollection", "features": [${geoJSONFeaturesString}]}`
+
+  const geoJSON = {
+    type: 'FeatureCollection',
+    features: geoJSONFeatures
+  }
+
+  fs.writeFileSync(`./temp/${tableName}.geojson`, geoJSONString)
+  return geoJSON
+}
+
+/**
+ * Generate the tiles sequentially using vt-pbf
+ */
+export const vtPbfSequential = async () => {
+  const bounds = await getLatLngBoundsFromDatabase()
+  const minZoom = process.env.MIN_ZOOM_LEVEL
+  const maxZoom = process.env.MAX_ZOOM_LEVEL
+
+  const geoJSON = await downloadAsGeoJSON()
+
+  const tileIndex = geojsonvt(geoJSON, {
+    maxZoom: parseInt(maxZoom),
+    debug: 1
+  })
+
+  // Loop through to create tiles for each zoom level
+  for (let zoom = parseInt(minZoom); zoom <= parseInt(maxZoom); zoom++) {
+    // Loop through each zoom level
+    for (let zoom = parseInt(minZoom); zoom <= parseInt(maxZoom); zoom++) {
+      const mvtBounds = getMVTBounds(bounds, zoom)
+      const { minX, maxX, minY, maxY } = mvtBounds
+
+      // Loop through each tile in the zoom level
+      for (let x = minX; x <= maxX; x++) {
+        for (let y = minY; y <= maxY; y++) {
+          const mvt = tileIndex.getTile(zoom, x, y)
+          const buff = vtpbf.fromGeojsonVt({ geojsonLayer: mvt })
+          fs.writeFileSync(`./tiles/${zoom}/${x}/${y}.mvt`, buff)
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Generate the tiles sequentially using the database
+ */
 export const databaseSequential = async () => {
   const bounds = await getLatLngBoundsFromDatabase()
 
@@ -112,36 +228,22 @@ export const databaseSequential = async () => {
   }
 }
 
-export const downloadAsGeoJSON = async () => {
-  const tableName = process.env.DB_TABLE
-
-  // First check if we already have the GeoJSON file
-  if (fs.existsSync(`./temp/${tableName}.geojson`)) {
-    return JSON.parse(fs.readFileSync(`./temp/${tableName}.geojson`))
-  }
-
-  // If the CSV file doesn't already exist, it will be created
-  await downloadAsCSV()
-
-  const geoJSON = { type: 'FeatureCollection', features: [] }
-
-  const jsonArray = await csvtojson().fromFile(`./temp/${tableName}.csv`)
-  jsonArray.forEach(element => {
-    if (element.st_astext && element.st_astext !== '') {
-      const feat = wktToGeoJSON(element.st_astext)
-      feat.properties = (({ st_astext, ...o }) => o)(element)
-      geoJSON.features.push(feat)
-    }
-  })
-
-  fs.writeFileSync(`./temp/${tableName}.geojson`, JSON.stringify(geoJSON))
-  return geoJSON
-}
-
-export const geoJSONSequential = async () => {
-  const bounds = await getLatLngBoundsFromDatabase()
+/**
+ * Generate the tiles using Tippecanoe
+ */
+export const tippecanoeBulk = async () => {
   const minZoom = process.env.MIN_ZOOM_LEVEL
   const maxZoom = process.env.MAX_ZOOM_LEVEL
 
-  const geoJSON = await downloadAsGeoJSON()
+  await downloadAsGeoJSON()
+
+  const tableName = process.env.DB_TABLE
+
+  // Run tippecanoe to generate the tiles
+  tippecanoe([`./temp/${tableName}.geojson`], {
+    outputToDirectory: './tiles',
+    minimumZoom: minZoom,
+    maximumZoom: maxZoom,
+    force: true
+  })
 }

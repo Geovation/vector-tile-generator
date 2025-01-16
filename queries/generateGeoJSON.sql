@@ -13,10 +13,10 @@ with geojson as (
   from (
     select
       {{columns}},
-      st_reduceprecision(st_transform(geom, 4326), 0.000001) as geom
+      st_reduceprecision(st_transform(st_makevalid(geom), 4326), 0.000001) as geom
     from
       {{table_name}}
   ) row
 )
 select data
-from geojson;
+from geojson
