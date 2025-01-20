@@ -10,8 +10,8 @@ dotenv.config()
 import { pool } from './dbConnection.js'
 
 import {
+  csvToGeoJSON,
   getLatLngBoundsFromDatabase,
-  downloadAsGeoJSON,
   getMVTBounds
 } from './utilities.js'
 
@@ -24,7 +24,7 @@ export const vtPbfSequential = async () => {
   const maxZoom = parseInt(process.env.MAX_ZOOM_LEVEL)
   const tableName = process.env.DB_TABLE
 
-  const geoJSON = await downloadAsGeoJSON()
+  const geoJSON = await csvToGeoJSON()
 
   const tileIndex = geojsonvt(geoJSON, {
     maxZoom: parseInt(maxZoom),
@@ -43,10 +43,9 @@ export const vtPbfSequential = async () => {
         for (let y = minY; y <= maxY; y++) {
           const mvt = tileIndex.getTile(zoom, x, y)
           if (!mvt) continue
-          // Create the directory if it doesn't exist
           fs.mkdirSync(`./tiles/${zoom}/${x}`, { recursive: true })
           const buff = vtpbf.fromGeojsonVt({ [tableName]: mvt })
-          fs.writeFileSync(`./tiles/${zoom}/${x}/${y}.mvt`, 'utf8', buff)
+          fs.writeFileSync(`./tiles/${zoom}/${x}/${y}.mvt`, buff)
         }
       }
     }
@@ -82,11 +81,10 @@ export const databaseSequential = async () => {
         const result = await pool.query(query, [zoom, x, y])
 
         const mvt = result.rows[0].mvt
-        const fileName = `./tiles/${zoom}/${x}/${y}.mvt`
-        // Create the directory if it doesn't exist
-        fs.mkdirSync(`./tiles/${zoom}/${x}`, { recursive: true })
+        if (!mvt || mvt.length === 0) continue
         // Write the MVT to a file
-        fs.writeFileSync(fileName, mvt)
+        fs.mkdirSync(`./tiles/${zoom}/${x}`, { recursive: true })
+        fs.writeFileSync(`./tiles/${zoom}/${x}/${y}.mvt`, mvt)
       }
     }
   }
@@ -99,7 +97,7 @@ export const tippecanoeBulk = async () => {
   const minZoom = process.env.MIN_ZOOM_LEVEL
   const maxZoom = process.env.MAX_ZOOM_LEVEL
 
-  await downloadAsGeoJSON()
+  await csvToGeoJSON()
 
   const tableName = process.env.DB_TABLE
 

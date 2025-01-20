@@ -7,6 +7,7 @@ import csvtojson from 'csvtojson'
 import { to as copyTo } from 'pg-copy-streams'
 import { pipeline } from 'node:stream/promises'
 import { wktToGeoJSON } from '@terraformer/wkt'
+import ogr2ogr from 'ogr2ogr'
 
 import { pool } from './dbConnection.js'
 
@@ -85,6 +86,26 @@ export const downloadDBTableCSV = async () => {
   }
   await pool.end()
   return
+}
+
+export const csvToGeoJSON = async () => {
+  const tableName = process.env.DB_TABLE
+
+  // First check if we already have the GeoJSON file
+  if (fs.existsSync(`./temp/${tableName}.geojson`)) {
+    return JSON.parse(fs.readFileSync(`./temp/${tableName}.geojson`))
+  }
+
+  // If the CSV file doesn't already exist, it will be created
+  await downloadDBTableCSV()
+
+  // Use ogr2ogr to convert the CSV to GeoJSON
+  const { text } = await ogr2ogr(`./temp/${tableName}.csv`, {
+    options: ['-oo', 'GEOM_POSSIBLE_NAMES=geom', '-oo', 'KEEP_GEOM_COLUMNS=NO']
+  })
+  fs.writeFileSync(`./temp/${tableName}.geojson`, text)
+
+  return JSON.parse(text)
 }
 
 export const downloadAsGeoJSON = async () => {

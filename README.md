@@ -38,8 +38,9 @@ brew install tippecanoe
 
 Some basic timings were taken for the different methods.
 
-| File size | Method     | Time   |
-| --------- | ---------- | ------ |
-| 50kb      | Tippecanoe | 0.7s   |
-| 50kb      | vtPbf      | 1.5s   |
-| 50kb      | PostGIS    | 122.7s |
+| Features | Method     | Time  |
+| -------- | ---------- | ----- |
+| 16       | Tippecanoe | 0.7s  |
+| 16       | vtPbf      | 1.7s  |
+| 16       | PostGIS    | 29.1s |
+| 500kb    | PostGIS    | 1.1s  |
