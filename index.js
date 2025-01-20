@@ -5,23 +5,29 @@ import {
   tippecanoeBulk
 } from './methods.js'
 
+const start = new Date()
+
 // Read input argument of the method to use
 const method = process.argv[2]
 
-const start = new Date()
+const runMethod = async methodName => {
+  if (methodName === 'databaseSequential') {
+    await databaseSequential()
+  }
 
-if (method === 'databaseSequential') {
-  await databaseSequential()
+  if (methodName === 'vtPbfSequential') {
+    await vtPbfSequential()
+  }
+
+  if (methodName === 'tippecanoeBulk') {
+    await tippecanoeBulk()
+  }
 }
 
-if (method === 'vtPbfSequential') {
-  await vtPbfSequential()
-}
+await runMethod(method)
 
-if (method === 'tippecanoeBulk') {
-  await tippecanoeBulk()
-}
-
-const end = new Date()
-const time = (end - start) / 1000
-console.log(`Time taken: ${time} seconds`)
+process.on('exit', () => {
+  const end = new Date()
+  const time = (end - start) / 1000
+  console.log(`Time taken: ${time} seconds`)
+})

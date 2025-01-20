@@ -33,3 +33,13 @@ The tippecanoe method is using node but is a wrapper around a local install of t
 ```bash
 brew install tippecanoe
 ```
+
+## Performance
+
+Some basic timings were taken for the different methods.
+
+| File size | Method     | Time   |
+| --------- | ---------- | ------ |
+| 50kb      | Tippecanoe | 0.7s   |
+| 50kb      | vtPbf      | 1.5s   |
+| 50kb      | PostGIS    | 122.7s |

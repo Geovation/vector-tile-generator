@@ -96,7 +96,7 @@ export const downloadAsGeoJSON = async () => {
   }
 
   // If the CSV file doesn't already exist, it will be created
-  await downloadAsCSV()
+  await downloadDBTableCSV()
 
   const geoJSONFeatures = []
 

@@ -41,10 +41,10 @@ export const vtPbfSequential = async () => {
       // Loop through each tile in the zoom level
       for (let x = minX; x <= maxX; x++) {
         for (let y = minY; y <= maxY; y++) {
-          // Create the directory if it doesn't exist
-          fs.mkdirSync(`./tiles/${zoom}/${x}`, { recursive: true })
           const mvt = tileIndex.getTile(zoom, x, y)
           if (!mvt) continue
+          // Create the directory if it doesn't exist
+          fs.mkdirSync(`./tiles/${zoom}/${x}`, { recursive: true })
           const buff = vtpbf.fromGeojsonVt({ [tableName]: mvt })
           fs.writeFileSync(`./tiles/${zoom}/${x}/${y}.mvt`, 'utf8', buff)
         }
