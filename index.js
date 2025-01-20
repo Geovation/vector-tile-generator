@@ -1,3 +1,4 @@
+// All the entry poiints for each method are defined here
 import {
   databaseSequential,
   vtPbfSequential,
@@ -7,9 +8,8 @@ import {
 // Read input argument of the method to use
 const method = process.argv[2]
 
-console.log('Executing method:', method)
+const start = new Date()
 
-// Execute the method
 if (method === 'databaseSequential') {
   await databaseSequential()
 }
@@ -21,3 +21,7 @@ if (method === 'vtPbfSequential') {
 if (method === 'tippecanoeBulk') {
   await tippecanoeBulk()
 }
+
+const end = new Date()
+const time = (end - start) / 1000
+console.log(`Time taken: ${time} seconds`)
