@@ -24,7 +24,7 @@ export const vtPbfSequential = async () => {
   const maxZoom = parseInt(process.env.MAX_ZOOM_LEVEL)
   const tableName = process.env.DB_TABLE
 
-  const geoJSON = await csvToGeoJSON()
+  const geoJSON = await csvToGeoJSON(true)
 
   const tileIndex = geojsonvt(geoJSON, {
     maxZoom: parseInt(maxZoom),

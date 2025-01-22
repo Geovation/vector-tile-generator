@@ -97,17 +97,22 @@ export const readGeoJSON = async () => {
   const readStream = fs.createReadStream(`./temp/${tableName}.geojson`)
   const parseStream = json.createParseStream()
 
-  parseStream.on('data', function (data) {
-    return data
+  const geoJSON = await new Promise((resolve, reject) => {
+    parseStream.on('data', data => {
+      resolve(data)
+    })
+    readStream.pipe(parseStream)
   })
+
+  return geoJSON
 }
 
-export const csvToGeoJSON = async () => {
+export const csvToGeoJSON = async (returnGeoJSON = false) => {
   const tableName = process.env.DB_TABLE
 
   // First check if we already have the GeoJSON file
   if (fs.existsSync(`./temp/${tableName}.geojson`)) {
-    return readGeoJSON()
+    return returnGeoJSON ? readGeoJSON() : null
   }
 
   // If the CSV file doesn't already exist, it will be created
@@ -126,7 +131,7 @@ export const csvToGeoJSON = async () => {
     ]
   })
 
-  return readGeoJSON()
+  return returnGeoJSON ? readGeoJSON() : null
 }
 
 export const downloadAsGeoJSON = async () => {
